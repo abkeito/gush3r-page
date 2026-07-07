@@ -76,3 +76,97 @@ $(document).ready(function() {
     bulmaSlider.attach();
 
 })
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.sync-video-pair').forEach(function (pair) {
+    const master = pair.querySelector('.sync-master');
+    const slave = pair.querySelector('.sync-slave');
+
+    if (!master || !slave) {
+      return;
+    }
+
+    function syncAndPlay() {
+      slave.currentTime = master.currentTime;
+      slave.play().catch(function () {});
+    }
+
+    master.addEventListener('play', syncAndPlay);
+    master.addEventListener('playing', syncAndPlay);
+    master.addEventListener('pause', function () {
+      slave.pause();
+    });
+    master.addEventListener('waiting', function () {
+      slave.pause();
+    });
+    master.addEventListener('seeking', function () {
+      slave.currentTime = master.currentTime;
+    });
+    master.addEventListener('seeked', function () {
+      slave.currentTime = master.currentTime;
+    });
+    master.addEventListener('ratechange', function () {
+      slave.playbackRate = master.playbackRate;
+    });
+    master.addEventListener('timeupdate', function () {
+      if (Math.abs(slave.currentTime - master.currentTime) >= 0.08) {
+        slave.currentTime = master.currentTime;
+      }
+    });
+
+    if (!master.paused) {
+      syncAndPlay();
+    }
+  });
+
+  const master = document.getElementById('result-output-video');
+  const slave = document.getElementById('result-input-video');
+  const masterSource = document.getElementById('result-output-source');
+  const slaveSource = document.getElementById('result-input-source');
+  const thumbs = document.querySelectorAll('.result-thumb');
+
+  if (!master || !slave || !masterSource || !slaveSource || !thumbs.length) {
+    return;
+  }
+
+  function waitForMetadata(video) {
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      return Promise.resolve();
+    }
+
+    return new Promise(function (resolve) {
+      video.addEventListener('loadedmetadata', resolve, { once: true });
+    });
+  }
+
+  thumbs.forEach(function (thumb) {
+    thumb.addEventListener('click', function () {
+      const outputPath = this.dataset.output;
+      const inputPath = this.dataset.input;
+
+      if (!outputPath || !inputPath) {
+        return;
+      }
+
+      master.pause();
+      masterSource.src = outputPath;
+      slaveSource.src = inputPath;
+
+      master.load();
+      slave.load();
+
+      Promise.all([waitForMetadata(master), waitForMetadata(slave)])
+        .then(function () {
+          master.currentTime = 0;
+          slave.currentTime = 0;
+          return master.play();
+        })
+        .catch(function () {});
+
+      thumbs.forEach(function (t) {
+        t.classList.remove('is-active');
+      });
+      this.classList.add('is-active');
+    });
+  });
+});
